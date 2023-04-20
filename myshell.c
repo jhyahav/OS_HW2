@@ -3,8 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
 
-#define STDIN 0
 #define RUN_IN_BACKGROUND '&'
 #define PIPE '|'
 #define REDIRECT '<'
@@ -13,73 +16,12 @@
 #define SUCCESS 0
 #define NOT_FOUND -1
 
-// arglist - a list of char* arguments (words) provided by the user
-// it contains count+1 items, where the last item (arglist[count]) and *only* the last is NULL
-// RETURNS - 1 if should continue, 0 otherwise
-int process_arglist(int count, char **arglist);
-
-// prepare and finalize calls for initialization and destruction of anything required
-int prepare(void);
-int finalize(void);
-
-int main(void)
-{
-	if (prepare() != 0)
-		exit(1);
-
-	while (1)
-	{
-		char **arglist = NULL;
-		char *line = NULL;
-		size_t size;
-		int count = 0;
-
-		if (getline(&line, &size, stdin) == -1)
-		{
-			free(line);
-			break;
-		}
-
-		arglist = (char **)malloc(sizeof(char *));
-		if (arglist == NULL)
-		{
-			printf("malloc failed: %s\n", strerror(errno));
-			exit(1);
-		}
-		arglist[0] = strtok(line, " \t\n");
-
-		while (arglist[count] != NULL)
-		{
-			++count;
-			arglist = (char **)realloc(arglist, sizeof(char *) * (count + 1));
-			if (arglist == NULL)
-			{
-				printf("realloc failed: %s\n", strerror(errno));
-				exit(1);
-			}
-
-			arglist[count] = strtok(NULL, " \t\n");
-		}
-
-		if (count != 0)
-		{
-			if (!process_arglist(count, arglist))
-			{
-				free(line);
-				free(arglist);
-				break;
-			}
-		}
-
-		free(line);
-		free(arglist);
-	}
-
-	if (finalize() != 0)
-		exit(1);
-
-	return 0;
-}
+void handle_background(int count, char **arglist);
+int handle_pipe(int count, char **arglist);
+int handle_redirect(int count, char **arglist);
+int execute_pipe(int count, char **arglist, int pipe_index);
+int execute_redirect(int count, char **arglist);
+void execute_command(int count, char **arglist, int is_background);
 
 int prepare(void)
 {
@@ -102,6 +44,8 @@ int process_arglist(int count, char **arglist)
 		return redirect_return;
 	}
 
+	execute_command(count, arglist, FALSE);
+
 	return 1;
 }
 
@@ -112,13 +56,12 @@ int finalize(void)
 
 void handle_background(int count, char **arglist)
 {
-	char *final = *arglist + count - 1;
-	if (*final != RUN_IN_BACKGROUND)
+	if (arglist[count - 1][0] != RUN_IN_BACKGROUND)
 	{
 		return;
 	}
 
-	*final = NULL; // FIXME: prone to errors, make sure it's okay
+	arglist[count - 1] = NULL; // FIXME: prone to errors, make sure it's okay
 	execute_command(count - 1, arglist, TRUE);
 }
 
@@ -139,7 +82,7 @@ int handle_pipe(int count, char **arglist)
 int handle_redirect(int count, char **arglist)
 {
 	// If there is a redirect, it is guaranteed to be the second-to-last word.
-	if (count > 2 && *(*arglist + count - 2) == REDIRECT)
+	if (count > 2 && arglist[count - 2][0] == REDIRECT)
 	{
 		return execute_redirect(count, arglist);
 	}
@@ -152,43 +95,44 @@ int execute_pipe(int count, char **arglist, int pipe_index)
 	int count_in = count - pipe_index - 1; // TODO: ensure no off-by-one here
 	arglist[pipe_index] = NULL;
 	char **args_out = arglist;
-	char **args_in = arglist[pipe_index + 1];
+	char **args_in = arglist + pipe_index + 1;
+
+	// TODO: add command execution logic w/ syscalls pipe and dup
 
 	return 1;
 }
 
 int execute_redirect(int count, char **arglist)
 {
-	char *pathname = *arglist + count - 1;
-	int fd = open(pathname); // TODO: check whether to add O_RDONLY from fcntl.h
+	char *pathname = arglist[count - 1];
+	int fd = open(pathname, O_RDONLY);
 	if (fd == NOT_FOUND)
 	{
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	if (dup2(fd, STDIN) == NOT_FOUND)
+	if (dup2(fd, STDIN_FILENO) == NOT_FOUND)
 	{
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
-	char *terminator = pathname - 1;
-	*terminator = NULL; // FIXME: prone to errors, make sure it's okay
+	arglist[count - 2] = NULL;
 	execute_command(count - 2, arglist, FALSE);
 
 	return 1;
 }
 
-int execute_command(int count, char **arglist, int is_background) // should be void?
+void execute_command(int count, char **arglist, int is_background) // could be int?
 {
 	if (count <= 0)
 	{
-		return 1; // Undefined behavior - edge case
+		return; // Undefined behavior - edge case
 	}
 	pid_t pid = fork();
 	if (pid == NOT_FOUND)
 	{
-		perror(errstr(errno));
+		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 	else if (pid == 0)
@@ -206,3 +150,4 @@ int execute_command(int count, char **arglist, int is_background) // should be v
 			}
 		}
 	}
+}
