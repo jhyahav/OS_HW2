@@ -9,6 +9,7 @@
 #define PIPE '|'
 #define REDIRECT '<'
 #define TRUE 1
+#define FALSE 0
 #define SUCCESS 0
 #define NOT_FOUND -1
 
@@ -87,12 +88,7 @@ int prepare(void)
 
 int process_arglist(int count, char **arglist)
 {
-	int is_background = *(*arglist + count - 1) == RUN_IN_BACKGROUND;
-
-	if (is_background)
-	{
-		// TODO: implement
-	}
+	handle_background(count, arglist);
 
 	int pipe_return = handle_pipe(count, arglist);
 	if (pipe_return != NOT_FOUND)
@@ -112,6 +108,18 @@ int process_arglist(int count, char **arglist)
 int finalize(void)
 {
 	return SUCCESS;
+}
+
+void handle_background(int count, char **arglist)
+{
+	char *final = *arglist + count - 1;
+	if (*final != RUN_IN_BACKGROUND)
+	{
+		return;
+	}
+
+	*final = NULL; // FIXME: prone to errors, make sure it's okay
+	execute_command(count - 1, arglist, TRUE);
 }
 
 int handle_pipe(int count, char **arglist)
@@ -140,7 +148,13 @@ int handle_redirect(int count, char **arglist)
 
 int execute_pipe(int count, char **arglist, int pipe_index)
 {
-	return;
+	int count_out = pipe_index;
+	int count_in = count - pipe_index - 1; // TODO: ensure no off-by-one here
+	arglist[pipe_index] = NULL;
+	char **args_out = arglist;
+	char **args_in = arglist[pipe_index + 1];
+
+	return 1;
 }
 
 int execute_redirect(int count, char **arglist)
@@ -150,30 +164,45 @@ int execute_redirect(int count, char **arglist)
 	if (fd == NOT_FOUND)
 	{
 		perror(strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 	if (dup2(fd, STDIN) == NOT_FOUND)
 	{
 		perror(strerror(errno));
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	char *terminator = pathname - 1;
 	*terminator = NULL; // FIXME: prone to errors, make sure it's okay
-	execute_command(count - 2, arglist);
+	execute_command(count - 2, arglist, FALSE);
 
-	return SUCCESS;
+	return 1;
 }
 
-int execute_command(int count, char **arglist)
+int execute_command(int count, char **arglist, int is_background) // should be void?
 {
 	if (count <= 0)
 	{
-		return 1;
+		return 1; // Undefined behavior - edge case
 	}
-	// TODO: implement
-
-	execvp(arglist[0], arglist);
-
-	return;
-}
+	pid_t pid = fork();
+	if (pid == NOT_FOUND)
+	{
+		perror(errstr(errno));
+		exit(EXIT_FAILURE);
+	}
+	else if (pid == 0)
+	{
+		execvp(arglist[0], arglist); // FIXME: wrap with error handling
+	}
+	else
+	{
+		if (!is_background)
+		{
+			int status;
+			int pid = wait(&status);
+			if (WIFEXITED(status))
+			{
+			}
+		}
+	}
