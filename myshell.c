@@ -71,7 +71,7 @@ int handle_pipe(int count, char **arglist)
 	for (int i = 1; i < count - 1; i++)
 	{
 		// We assume at most 1 pipe, so we return after execution.
-		if (*(*arglist + i) == PIPE)
+		if (arglist[i][0] == PIPE)
 		{
 			return execute_pipe(count, arglist, i);
 		}
@@ -104,8 +104,7 @@ int execute_pipe(int count, char **arglist, int pipe_index)
 
 int execute_redirect(int count, char **arglist)
 {
-	char *pathname = arglist[count - 1];
-	int fd = open(pathname, O_RDONLY);
+	int fd = open(arglist[count - 1], O_RDONLY);
 	if (fd == NOT_FOUND)
 	{
 		perror(strerror(errno));
@@ -141,6 +140,7 @@ void execute_command(int count, char **arglist, int is_background) // could be i
 	}
 	else
 	{
+		// We only wait for foreground processes
 		if (!is_background)
 		{
 			int status;
