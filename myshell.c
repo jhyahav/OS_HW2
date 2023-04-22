@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #define RUN_IN_BACKGROUND '&'
 #define PIPE '|'
@@ -23,6 +24,8 @@ int execute_pipe(int count, char **arglist, int pipe_index);
 int execute_redirect(int count, char **arglist);
 void execute_command(int count, char **arglist, int is_background);
 void clean_arglist(int count, char **arglist);
+
+// Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c -Wno-unused-variable
 
 int prepare(void)
 {
@@ -96,18 +99,46 @@ int handle_redirect(int count, char **arglist)
 
 int execute_pipe(int count, char **arglist, int pipe_index)
 {
-	int count_out = pipe_index;
-	int count_in = count - pipe_index - 1; // TODO: ensure no off-by-one here
 	arglist[pipe_index] = NULL;
 	char **args_out = arglist;
 	char **args_in = arglist + pipe_index + 1;
+
+	int fd[2];
+	pipe(fd);
+
+	pid_t pid_child_out = fork();
+
+	if (pid_child_out == 0)
+	{
+		close(fd[0]);				// Close read end of pipe
+		dup2(fd[1], STDOUT_FILENO); // Redirect stdout to write end
+		close(fd[1]);
+		execvp(args_out[0], args_out);
+		exit(EXIT_FAILURE); // execvp should not return
+	}
+
+	pid_t pid_child_in = fork();
+	if (pid_child_in == 0)
+	{
+		close(fd[1]);
+		dup2(fd[0], STDIN_FILENO);
+		close(fd[0]);
+		execvp(args_in[0], args_in);
+		exit(EXIT_FAILURE);
+	}
+
+	// Parent
+	close(fd[0]);
+	close(fd[1]);
+	waitpid(pid_child_out, NULL, 0);
+	waitpid(pid_child_in, NULL, 0);
 
 	// TODO: add command execution logic w/ syscalls pipe and dup
 
 	return 1;
 }
 
-int execute_redirect(int count, char **arglist)
+int execute_redirect(int count, char **arglist) // FIXME:
 {
 
 	pid_t pid = fork();
@@ -193,6 +224,8 @@ void execute_command(int count, char **arglist, int is_background)
 		}
 	}
 }
+
+// TODO: add sigint handler
 
 // void clean_arglist(int count, char **arglist)
 // {
