@@ -108,12 +108,22 @@ int execute_pipe(int count, char **arglist, int pipe_index)
 	pipe(fd);
 
 	pid_t pid_child_out = fork();
+	if (pid_child_out == NOT_FOUND)
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	if (pid_child_out == 0)
 	{
 		execute_pipe_child(args_out, fd, TRUE);
 	}
 
 	pid_t pid_child_in = fork();
+	if (pid_child_in == NOT_FOUND)
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	if (pid_child_in == 0)
 	{
 		execute_pipe_child(args_in, fd, FALSE);
@@ -137,7 +147,7 @@ int execute_redirect(int count, char **arglist) // FIXME:
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	else if (pid == 0)
+	if (pid == 0)
 	{
 		// printf("Began execution: %s\n", arglist[0]);
 		int fd = open(arglist[count - 1], O_RDONLY);
@@ -195,7 +205,7 @@ void execute_command(int count, char **arglist, int is_background)
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	else if (pid == 0)
+	if (pid == 0)
 	{
 		// printf("Began execution: %s\n", arglist[0]);
 		if (execvp(arglist[0], arglist) == NOT_FOUND)

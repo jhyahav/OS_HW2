@@ -1,0 +1,8 @@
+ls -la | grep shell.c
+echo
+ls | cat
+echo
+cat shell.c | grep void
+echo
+sleep 50 | echo Done!
+echo Psych!
