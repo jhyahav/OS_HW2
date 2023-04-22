@@ -140,56 +140,21 @@ int execute_pipe(int count, char **arglist, int pipe_index)
 
 int execute_redirect(int count, char **arglist) // FIXME:
 {
-
-	pid_t pid = fork();
-	if (pid == NOT_FOUND)
+	int fd = open(arglist[count - 1], O_RDONLY);
+	if (fd == NOT_FOUND)
 	{
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	if (pid == 0)
+	if (dup2(fd, STDIN_FILENO) == NOT_FOUND)
 	{
-		// printf("Began execution: %s\n", arglist[0]);
-		int fd = open(arglist[count - 1], O_RDONLY);
-		// printf("Opened\n");
-		if (fd == NOT_FOUND)
-		{
-			perror(strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-		if (dup2(fd, STDIN_FILENO) == NOT_FOUND)
-		{
-			perror(strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-
-		close(fd);
-
-		// int i = 0;
-		// while (*arglist != NULL && i < count)
-		// {
-		// 	printf(*(arglist + i++));
-
-		// }
-
-		// execvp(arglist[0], arglist); // FIXME: wrap with error handling
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
 	}
-	else
-	{
-
-		int status;
-		int pid = wait(&status);
-		if (WIFEXITED(status))
-		{
-			// printf("Child finished\n");
-		}
-	}
-
-	// arglist[count - 2] = NULL;
-	// execute_command(count, arglist, FALSE);
-	// clean_arglist(count, arglist);
-	// execute_command(count - 1, arglist, FALSE);
-
+	close(fd);
+	arglist[count - 2] = NULL;
+	execute_command(count - 2, arglist, FALSE);
+	// printf("Back!\n");
 	return 1;
 }
 
@@ -220,7 +185,7 @@ void execute_command(int count, char **arglist, int is_background)
 		if (!is_background)
 		{
 			int status;
-			int pid = wait(&status);
+			int pid = wait(&status); // FIXME: int -> pid_t?
 			if (WIFEXITED(status))
 			{
 				// printf("Child finished\n");
@@ -245,17 +210,3 @@ void execute_pipe_child(char **arglist, int *fd, int is_out)
 }
 
 // TODO: add sigint handler
-
-// void clean_arglist(int count, char **arglist)
-// {
-// 	int i = 0;
-// 	for (int j = 0; j < count; j++)
-// 	{
-// 		if (arglist[j][0] == REDIRECT)
-// 		{
-// 			continue;
-// 		}
-// 		printf(arglist[i]);
-// 		arglist[i++] = arglist[j];
-// 	}
-// }

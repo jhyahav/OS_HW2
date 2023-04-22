@@ -4,5 +4,8 @@ ls | cat
 echo
 cat shell.c | grep void
 echo
-sleep 50 | echo Done!
+sleep 10 | echo Done!
 echo Psych!
+cat < test.txt
+echo Heyo
+echo OK
