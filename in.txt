@@ -1,3 +1,5 @@
+sleep 100 &
+blah
 ls -la | grep shell.c
 echo
 ls | cat
@@ -8,4 +10,6 @@ sleep 10 | echo Done!
 echo Psych!
 cat < test.txt
 echo Heyo
-echo OK
+more < shell.c
+sleep 2
+echo Done. Back to you!
