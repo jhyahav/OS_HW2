@@ -10,6 +10,5 @@ sleep 10 | echo Done!
 echo Psych!
 cat < test.txt
 echo Heyo
-more < shell.c
-sleep 2
+cat < shell.c
 echo Done. Back to you!

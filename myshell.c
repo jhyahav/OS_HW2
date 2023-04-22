@@ -24,9 +24,9 @@ int execute_pipe(int count, char **arglist, int pipe_index);
 int execute_redirect(int count, char **arglist);
 void execute_command(int count, char **arglist, int is_background);
 void execute_pipe_child(char **arglist, int *fd, int is_out);
-void clean_arglist(int count, char **arglist);
+void execute_redirect_child(int count, char **arglist);
 
-// Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c -Wno-unused-variable
+// Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c
 
 int prepare(void)
 {
@@ -68,7 +68,7 @@ int handle_background(int count, char **arglist)
 		return FALSE;
 	}
 
-	arglist[count - 1] = NULL; // FIXME: prone to errors, make sure it's okay
+	arglist[count - 1] = NULL;
 	// printf("Background\n");
 	execute_command(count - 1, arglist, TRUE);
 	return TRUE;
@@ -138,7 +138,7 @@ int execute_pipe(int count, char **arglist, int pipe_index)
 	return 1;
 }
 
-int execute_redirect(int count, char **arglist) // FIXME:
+int execute_redirect(int count, char **arglist)
 {
 	pid_t pid = fork();
 	if (pid == NOT_FOUND)
@@ -148,29 +148,12 @@ int execute_redirect(int count, char **arglist) // FIXME:
 	}
 	if (pid == 0)
 	{
-		int fd = open(arglist[count - 1], O_RDONLY);
-		if (fd == NOT_FOUND)
-		{
-			perror(strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-		if (dup2(fd, STDIN_FILENO) == NOT_FOUND)
-		{
-			perror(strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-		close(fd);
-		arglist[count - 2] = NULL;
-		if (execvp(arglist[0], arglist) == NOT_FOUND)
-		{
-			perror(strerror(errno));
-			exit(EXIT_FAILURE);
-		}
+		execute_redirect_child(count, arglist);
 	}
 	else
 	{
 		int status;
-		int pid = wait(&status); // FIXME: int -> pid_t?
+		wait(&status);
 		if (WIFEXITED(status))
 		{
 			// printf("Child finished\n");
@@ -207,7 +190,7 @@ void execute_command(int count, char **arglist, int is_background)
 		if (!is_background)
 		{
 			int status;
-			int pid = wait(&status); // FIXME: int -> pid_t?
+			wait(&status); // FIXME: int -> pid_t?
 			if (WIFEXITED(status))
 			{
 				// printf("Child finished\n");
@@ -231,6 +214,26 @@ void execute_pipe_child(char **arglist, int *fd, int is_out)
 	}
 }
 
-// void execute_redirect_child()
+void execute_redirect_child(int count, char **arglist)
+{
+	int fd = open(arglist[count - 1], O_RDONLY);
+	if (fd == NOT_FOUND)
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	if (dup2(fd, STDIN_FILENO) == NOT_FOUND)
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	close(fd);
+	arglist[count - 2] = NULL;
+	if (execvp(arglist[0], arglist) == NOT_FOUND)
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+}
 
 // TODO: add sigint handler
