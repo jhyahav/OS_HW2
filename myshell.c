@@ -23,6 +23,7 @@ int handle_redirect(int count, char **arglist);
 int execute_pipe(int count, char **arglist, int pipe_index);
 int execute_redirect(int count, char **arglist);
 void execute_command(int count, char **arglist, int is_background);
+void execute_pipe_child(char **arglist, int *fd, int is_out);
 void clean_arglist(int count, char **arglist);
 
 // Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c -Wno-unused-variable
@@ -107,33 +108,22 @@ int execute_pipe(int count, char **arglist, int pipe_index)
 	pipe(fd);
 
 	pid_t pid_child_out = fork();
-
 	if (pid_child_out == 0)
 	{
-		close(fd[0]);				// Close read end of pipe
-		dup2(fd[1], STDOUT_FILENO); // Redirect stdout to write end
-		close(fd[1]);
-		execvp(args_out[0], args_out);
-		exit(EXIT_FAILURE); // execvp should not return
+		execute_pipe_child(args_out, fd, TRUE);
 	}
 
 	pid_t pid_child_in = fork();
 	if (pid_child_in == 0)
 	{
-		close(fd[1]);
-		dup2(fd[0], STDIN_FILENO);
-		close(fd[0]);
-		execvp(args_in[0], args_in);
-		exit(EXIT_FAILURE);
+		execute_pipe_child(args_in, fd, FALSE);
 	}
 
-	// Parent
+	// Parent closes both ends of pipe and waits for both children
 	close(fd[0]);
 	close(fd[1]);
 	waitpid(pid_child_out, NULL, 0);
 	waitpid(pid_child_in, NULL, 0);
-
-	// TODO: add command execution logic w/ syscalls pipe and dup
 
 	return 1;
 }
@@ -208,7 +198,11 @@ void execute_command(int count, char **arglist, int is_background)
 	else if (pid == 0)
 	{
 		// printf("Began execution: %s\n", arglist[0]);
-		execvp(arglist[0], arglist); // FIXME: wrap with error handling
+		if (execvp(arglist[0], arglist) == NOT_FOUND)
+		{
+			perror(strerror(errno));
+			exit(EXIT_FAILURE);
+		}
 	}
 	else
 	{
@@ -222,6 +216,21 @@ void execute_command(int count, char **arglist, int is_background)
 				// printf("Child finished\n");
 			}
 		}
+	}
+}
+
+void execute_pipe_child(char **arglist, int *fd, int is_out)
+{
+	int used_end = is_out;
+	int other_end = !is_out; // We close the unused end of the pipe first
+	int redirect_src = is_out ? STDOUT_FILENO : STDIN_FILENO;
+	close(fd[other_end]);
+	dup2(fd[used_end], redirect_src); // Redirect stdout to write end / stdin to read end
+	close(fd[used_end]);
+	if (execvp(arglist[0], arglist) == NOT_FOUND)
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
 	}
 }
 
