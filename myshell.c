@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
-#include <stdio.h> //TODO: remove
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h> //TODO: remove
+#include <string.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -28,14 +28,20 @@ void execute_command(int count, char **arglist, int is_background);
 void execute_pipe_child(char **arglist, int *fd, int is_out);
 void execute_redirect_child(int count, char **arglist);
 void toggle_sigint_handling(int on_or_off);
-void handle_sigchld(void);
 
 // Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c
 
 int prepare(void)
 {
 	toggle_sigint_handling(OFF); // shell should ignore SIGINT
-
+	/*
+		Source: https://stackoverflow.com/a/7171836/8193396
+		This is within the scope of the assignment:
+		"You may only use the signal system call to set the signal disposition to SIG_IGN or
+		to SIG_DFL..."
+		The following line efficiently prevents zombie processes throughout the shell's runtime.
+	*/
+	signal(SIGCHLD, SIG_IGN);
 	return SUCCESS;
 }
 
@@ -258,9 +264,4 @@ void toggle_sigint_handling(int on_or_off)
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-}
-
-void handle_sigchld()
-{
-	struct sigaction sa_sigchld;
 }
