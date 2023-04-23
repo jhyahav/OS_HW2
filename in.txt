@@ -1,14 +1,24 @@
-sleep 100 &
+sleep 2 &
+echo
 blah
+echo
+sleep 2
+ps
+echo
 ls -la | grep shell.c
+ps
 echo
 ls | cat
 echo
 cat shell.c | grep void
 echo
+ps
+echo
 sleep 10 | echo Done!
 echo Psych!
 cat < test.txt
 echo Heyo
-cat < shell.c
+cat < test.txt
+echo
 echo Done. Back to you!
+echo

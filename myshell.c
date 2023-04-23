@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
-#include <stdio.h>
+#include <stdio.h> //TODO: remove
 #include <stdlib.h>
-#include <string.h>
+#include <string.h> //TODO: remove
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -16,6 +16,8 @@
 #define FALSE 0
 #define SUCCESS 0
 #define NOT_FOUND -1
+#define ON 1
+#define OFF 0
 
 int handle_background(int count, char **arglist);
 int handle_pipe(int count, char **arglist);
@@ -25,11 +27,15 @@ int execute_redirect(int count, char **arglist);
 void execute_command(int count, char **arglist, int is_background);
 void execute_pipe_child(char **arglist, int *fd, int is_out);
 void execute_redirect_child(int count, char **arglist);
+void toggle_sigint_handling(int on_or_off);
+void handle_sigchld(void);
 
 // Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c
 
 int prepare(void)
 {
+	toggle_sigint_handling(OFF); // shell should ignore SIGINT
+
 	return SUCCESS;
 }
 
@@ -69,7 +75,6 @@ int handle_background(int count, char **arglist)
 	}
 
 	arglist[count - 1] = NULL;
-	// printf("Background\n");
 	execute_command(count - 1, arglist, TRUE);
 	return TRUE;
 }
@@ -177,7 +182,11 @@ void execute_command(int count, char **arglist, int is_background)
 	}
 	if (pid == 0)
 	{
-		// printf("Began execution: %s\n", arglist[0]);
+		if (!is_background)
+		{
+			// Only restore default SIGINT handling for foreground processes.
+			toggle_sigint_handling(ON);
+		}
 		if (execvp(arglist[0], arglist) == NOT_FOUND)
 		{
 			perror(strerror(errno));
@@ -201,6 +210,7 @@ void execute_command(int count, char **arglist, int is_background)
 
 void execute_pipe_child(char **arglist, int *fd, int is_out)
 {
+	toggle_sigint_handling(ON);
 	int used_end = is_out;
 	int other_end = !is_out; // We close the unused end of the pipe first
 	int redirect_src = is_out ? STDOUT_FILENO : STDIN_FILENO;
@@ -216,6 +226,7 @@ void execute_pipe_child(char **arglist, int *fd, int is_out)
 
 void execute_redirect_child(int count, char **arglist)
 {
+	toggle_sigint_handling(ON);
 	int fd = open(arglist[count - 1], O_RDONLY);
 	if (fd == NOT_FOUND)
 	{
@@ -236,4 +247,20 @@ void execute_redirect_child(int count, char **arglist)
 	}
 }
 
-// TODO: add sigint handler
+void toggle_sigint_handling(int on_or_off)
+{
+	struct sigaction sa_sigint;
+	// If handling is ON: default handling (SIG_DFL). If not, ignore SIGINT (SIG_IGN).
+	sa_sigint.sa_handler = on_or_off == ON ? SIG_DFL : SIG_IGN;
+	sa_sigint.sa_flags = SA_RESTART;
+	if (sigaction(SIGINT, &sa_sigint, NULL))
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+}
+
+void handle_sigchld()
+{
+	struct sigaction sa_sigchld;
+}
