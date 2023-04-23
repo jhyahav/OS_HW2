@@ -28,20 +28,14 @@ void execute_command(int count, char **arglist, int is_background);
 void execute_pipe_child(char **arglist, int *fd, int is_out);
 void execute_redirect_child(int count, char **arglist);
 void toggle_sigint_handling(int on_or_off);
+void handle_SIGCHLD(void);
 
 // Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c
 
 int prepare(void)
 {
 	toggle_sigint_handling(OFF); // shell should ignore SIGINT
-	/*
-		Source: https://stackoverflow.com/a/7171836/8193396
-		This is within the scope of the assignment:
-		"You may only use the signal system call to set the signal disposition to SIG_IGN or
-		to SIG_DFL..."
-		The following line efficiently prevents zombie processes throughout the shell's runtime.
-	*/
-	signal(SIGCHLD, SIG_IGN);
+	handle_SIGCHLD();
 	return SUCCESS;
 }
 
@@ -260,6 +254,22 @@ void toggle_sigint_handling(int on_or_off)
 	sa_sigint.sa_handler = on_or_off == ON ? SIG_DFL : SIG_IGN;
 	sa_sigint.sa_flags = SA_RESTART;
 	if (sigaction(SIGINT, &sa_sigint, NULL))
+	{
+		perror(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+}
+
+void handle_SIGCHLD(void)
+{
+	/*
+		Source for use of signal() syscall: https://stackoverflow.com/a/7171836/8193396
+		This is within the scope of the assignment:
+		"You may only use the signal system call to set the signal disposition to SIG_IGN or
+		to SIG_DFL..."
+		The following line efficiently prevents zombie processes throughout the shell's runtime.
+	*/
+	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
 	{
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
