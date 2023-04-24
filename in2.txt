@@ -1,6 +1,0 @@
-sleep 2 &
-ls -la | grep shell.c
-ps
-cat < test.txt
-cat shell.c | grep void
-sleep 10 | echo Sleeping right now
