@@ -32,8 +32,6 @@ void restore_default_signal_handling(void);
 void toggle_ignore_SIGINT(int on_or_off);
 void toggle_ignore_SIGCHLD(int on_or_off);
 
-// Compile with: gcc -O3 -D_POSIX_C_SOURCE=200809 -Wall -std=c11 shell.c myshell.c
-
 int prepare(void)
 {
 	toggle_ignore_SIGINT(ON);  // shell should ignore SIGINT
@@ -66,7 +64,7 @@ int process_arglist(int count, char **arglist)
 
 int finalize(void)
 {
-	return SUCCESS;
+	return SUCCESS; // no cleanup required
 }
 
 int handle_background(int count, char **arglist)
@@ -252,14 +250,6 @@ void handle_wait(pid_t pid)
 		perror(strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-
-	// toggle_ignore_SIGCHLD(OFF);
-	// int status;
-	// wait(&status);
-	// if (WIFEXITED(status))
-	// {
-	// 	toggle_ignore_SIGCHLD(ON);
-	// }
 }
 
 void restore_default_signal_handling(void)
@@ -273,7 +263,7 @@ void restore_default_signal_handling(void)
 void toggle_ignore_SIGINT(int on_or_off)
 {
 	struct sigaction sa_sigint;
-	// If handling is ON: default handling (SIG_DFL). If not, ignore SIGINT (SIG_IGN).
+	// If handling is ON: default handling (SIG_DFL). If OFF, ignore SIGINT (SIG_IGN).
 	sa_sigint.sa_handler = on_or_off == OFF ? SIG_DFL : SIG_IGN;
 	sa_sigint.sa_flags = SA_RESTART;
 	if (sigaction(SIGINT, &sa_sigint, NULL))
